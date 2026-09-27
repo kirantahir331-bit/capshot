@@ -1,0 +1,10 @@
+{
+  "name": "Capshot",
+  "description": "Free AI social media caption generator with multi-language pairs, style matching, and instant 4-card variations.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
