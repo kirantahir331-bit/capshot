@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { X, ShieldAlert, Zap, Server, Database, Sparkles, CheckCircle2, Download, Loader2 } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import { X, ShieldAlert, Zap, Server, Database, Sparkles } from "lucide-react";
 
 interface HonestLimitsModalProps {
   isOpen: boolean;
@@ -18,32 +18,10 @@ export const HonestLimitsModal: React.FC<HonestLimitsModalProps> = ({
     geminiConfigured?: boolean;
     openRouterConfigured?: boolean;
   }>({});
-  const [downloading, setDownloading] = useState(false);
-
-  const handleDownloadZip = async () => {
-    try {
-      setDownloading(true);
-      const res = await fetch('/api/download-zip');
-      if (!res.ok) throw new Error('Download failed');
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'capshot-project.zip';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Download error:', err);
-    } finally {
-      setDownloading(false);
-    }
-  };
 
   useEffect(() => {
     if (isOpen) {
-      fetch('/api/stats')
+      fetch("/api/stats")
         .then((res) => res.json())
         .then((data) => setStats(data))
         .catch(() => {});
@@ -53,12 +31,12 @@ export const HonestLimitsModal: React.FC<HonestLimitsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#141720] border border-[#E5E2DC] dark:border-[#252A37] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 sm:p-7 relative text-[#151922] dark:text-[#E2E6EF]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="relative w-full max-w-lg bg-[#FAF8F5] dark:bg-[#1A1F2C] border border-[#EAE6DF] dark:border-[#252A37] rounded-3xl p-6 shadow-2xl overflow-hidden">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-1.5 rounded-lg text-[#7A8191] hover:text-[#151922] dark:hover:text-white hover:bg-[#F2EFE9] dark:hover:bg-[#1E2330] transition-colors"
+          className="absolute top-5 right-5 p-2 rounded-xl text-[#7A8191] hover:text-[#151922] dark:hover:text-white hover:bg-[#F3EFEA] dark:hover:bg-[#252A37] transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
@@ -69,112 +47,77 @@ export const HonestLimitsModal: React.FC<HonestLimitsModalProps> = ({
             <Zap className="w-5 h-5 text-[#854D0E] dark:text-yellow-400" />
           </div>
           <div>
-            <h3 className="font-heading font-bold text-xl text-[#151922] dark:text-white">
-              Capshot Architecture & Honest Limits
+            <h3 className="text-lg font-bold text-[#151922] dark:text-white">
+              How Capshot Works & Honest Limits
             </h3>
-            <p className="text-xs text-[#6B7280] dark:text-[#9DA3B4]">
-              Transparent breakdown of how Capshot runs 100% free with zero accounts.
+            <p className="text-xs text-[#7A8191]">
+              Transparency first — no hidden credit card paywalls.
             </p>
           </div>
         </div>
 
-        {/* Live Server & Cache Status */}
-        <div className="mb-6 p-3.5 rounded-xl bg-[#FAF8F5] dark:bg-[#0F1117] border border-[#EBE7E0] dark:border-[#222734] grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-          <div>
-            <div className="text-[10px] uppercase font-bold text-[#868C9C]">Cached Prompts</div>
-            <div className="text-base font-bold text-[#FF2E63] font-heading">
-              {stats.cachedEntries ?? 0}
-            </div>
-            <div className="text-[9px] text-[#6B7280]">30-day TTL</div>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase font-bold text-[#868C9C]">RPM Ceiling</div>
-            <div className="text-base font-bold text-[#151922] dark:text-white font-heading">
-              {stats.rpmLimit ?? 40} req/m
-            </div>
-            <div className="text-[9px] text-[#6B7280]">Rate-limit guard</div>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase font-bold text-[#868C9C]">Cache Engine</div>
-            <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
-              {stats.upstashConfigured ? 'Upstash Redis' : 'In-Memory LRU'}
+        {/* System Status Indicators */}
+        <div className="grid grid-cols-2 gap-2.5 mb-5">
+          <div className="p-3 rounded-2xl bg-white dark:bg-[#151922] border border-[#EAE6DF] dark:border-[#252A37] flex items-center gap-2.5">
+            <Server className="w-4 h-4 text-[#08D9D6]" />
+            <div>
+              <div className="text-[10px] text-[#7A8191] font-medium uppercase tracking-wider">AI Pipeline</div>
+              <div className="text-xs font-semibold text-[#151922] dark:text-white flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Fast Multi-Model
+              </div>
             </div>
           </div>
-          <div>
-            <div className="text-[10px] uppercase font-bold text-[#868C9C]">Visitor Cost</div>
-            <div className="text-xs font-semibold text-[#FF2E63] mt-1">$0 / Forever</div>
+
+          <div className="p-3 rounded-2xl bg-white dark:bg-[#151922] border border-[#EAE6DF] dark:border-[#252A37] flex items-center gap-2.5">
+            <Database className="w-4 h-4 text-[#FF2E63]" />
+            <div>
+              <div className="text-[10px] text-[#7A8191] font-medium uppercase tracking-wider">Smart Cache</div>
+              <div className="text-xs font-semibold text-[#151922] dark:text-white">
+                {stats.cachedEntries ?? 0} Instant Results
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Core Architecture Insights */}
-        <div className="space-y-4 text-xs sm:text-sm text-[#444A57] dark:text-[#CBD2E0] leading-relaxed">
-          <div className="p-3.5 rounded-xl bg-[#FAF8F5]/80 dark:bg-[#1A1E29] border border-[#E6E1D8] dark:border-[#2A3142]">
-            <h4 className="font-semibold text-xs sm:text-sm text-[#151922] dark:text-white flex items-center gap-1.5 mb-1">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              <span>Why zero logins or visitor API keys are required</span>
-            </h4>
-            <p className="text-xs text-[#555B6A] dark:text-[#A7AFBD]">
-              A visitor's own AI account or credit card is never touched. The server handles
-              requests on the backend using site-level API keys and an automatic free-model router
-              or Google Gemini. You can safely bookmark and share Capshot without anyone needing to sign up.
-            </p>
+        {/* Honest Limitations Checklist */}
+        <div className="space-y-3 text-xs text-[#525765] dark:text-gray-300">
+          <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/30 flex items-start gap-2.5">
+            <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-semibold text-amber-900 dark:text-amber-200">Rate Limiting Protection: </span>
+              To keep Capshot completely free for everyone, requests are rate-limited to maintain high speed and prevent bot exhaustion.
+            </div>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-[#FAF8F5]/80 dark:bg-[#1A1E29] border border-[#E6E1D8] dark:border-[#2A3142]">
-            <h4 className="font-semibold text-xs sm:text-sm text-[#151922] dark:text-white flex items-center gap-1.5 mb-1">
-              <Database className="w-4 h-4 text-blue-500" />
-              <span>Redis caching + silent auto-retry loop</span>
-            </h4>
-            <p className="text-xs text-[#555B6A] dark:text-[#A7AFBD]">
-              Duplicate and similar requests are returned instantly from cache (30-day expiry),
-              consuming 0 API calls. If hundreds of people query simultaneously and hit the free
-              rate ceiling, the server returns a quiet retry signal that auto-attempts 5 times
-              before showing an error.
-            </p>
-          </div>
-
-          {/* Honest Limits section */}
-          <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 text-amber-900 dark:text-amber-200">
-            <h4 className="font-semibold text-xs sm:text-sm flex items-center gap-1.5 mb-1 text-amber-900 dark:text-amber-300">
-              <ShieldAlert className="w-4 h-4 text-amber-600" />
-              <span>Honest limits you should know</span>
-            </h4>
-            <ul className="list-disc list-inside space-y-1 text-xs text-amber-800 dark:text-amber-300/90 pl-1">
+          <div className="p-3.5 rounded-2xl bg-white dark:bg-[#151922] border border-[#EAE6DF] dark:border-[#252A37] space-y-2">
+            <div className="font-semibold text-[#151922] dark:text-white flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#08D9D6]" />
+              What to expect:
+            </div>
+            <ul className="list-disc pl-4 space-y-1 text-[11px] text-[#7A8191]">
               <li>
-                <strong>Free-tier ceilings:</strong> Designed for tens of requests per minute and
-                thousands per day. Viral traffic spikes can momentarily trigger the 2s retry queue.
+                <strong>Instant caching:</strong> Common trends and topics generate in milliseconds from high-speed cache.
               </li>
               <li>
-                <strong>Output model scope:</strong> Ideal for creative captions, engagement hooks,
-                and social hashtags. Not intended for academic or high-stakes legal copywriting.
+                <strong>Output model scope:</strong> Ideal for creative captions, engagement hooks, and social hashtags.
               </li>
               <li>
-                <strong>Scaling up:</strong> If traffic exceeds free limits, adding a low-cost paid
-                tier on the backend is plug-and-play without changing user UX.
+                <strong>Generous Free Tier:</strong> Free to generate anytime without subscription traps.
               </li>
             </ul>
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="mt-6 pt-4 border-t border-[#EAE6DF] dark:border-[#252A37] flex flex-col sm:flex-row items-center justify-between gap-3">
-          <button
-            onClick={handleDownloadZip}
-            disabled={downloading}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-[#FF2E63] hover:bg-[#E02656] text-white font-medium text-xs transition-colors shadow-sm disabled:opacity-70"
-            title="Download complete project ZIP to deploy on Vercel"
-          >
-            {downloading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Download className="w-3.5 h-3.5" />
-            )}
-            <span>{downloading ? 'Preparing ZIP...' : 'Download Project Code (ZIP)'}</span>
-          </button>
+        <div className="mt-6 pt-4 border-t border-[#EAE6DF] dark:border-[#252A37] flex items-center justify-between">
+          <span className="text-[11px] text-[#7A8191]">
+            Capshot • Built for creators and marketers
+          </span>
 
           <button
             onClick={onClose}
-            className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#151922] hover:bg-black text-white dark:bg-white dark:text-[#151922] dark:hover:bg-gray-100 font-semibold text-xs transition-colors"
+            className="px-4 py-2 rounded-xl bg-[#151922] hover:bg-black text-white dark:bg-white dark:text-[#151922] dark:hover:bg-gray-100 font-semibold text-xs transition-colors"
           >
             Got it, thanks!
           </button>
