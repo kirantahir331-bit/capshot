@@ -17,44 +17,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Post topic is required.' });
   }
 
-  const prompt = `You are a professional social media copywriter. Generate 4 bilingual captions with 5 hashtags.
+  const prompt = `You are a creative social media copywriter. Generate 4 bilingual captions specifically customized for this topic with 5 relevant hashtags.
 Topic: "${topic}"
 Platform: "${platform}"
 Language Pair: "${languagePair}"
 Vibe: "${vibe}"
-${myStyle ? `Style to mimic: "${myStyle}"` : ''}
+${myStyle ? `Tone/Style to mimic: "${myStyle}"` : ''}
 
-Return ONLY valid JSON matching this exact structure:
+Generate 4 unique angles:
+1. Catchy Hook & Vibe (attention-grabbing first line)
+2. Relatable Story / Candid Humor
+3. Short, Punchy & Aesthetic
+4. High Engagement Question / CTA (Call to Action)
+
+Return ONLY a valid JSON object matching this exact structure, with NO extra text and NO markdown ticks:
 {
   "success": true,
   "cards": [
     {
       "id": 1,
       "angle": "Catchy Hook & Vibe",
-      "primaryCaption": "English caption with emojis and hook",
-      "secondaryCaption": "Roman Urdu translation matching the vibe",
-      "hashtags": ["#aesthetic", "#explore", "#viral", "#vibes", "#daily"]
+      "primaryCaption": "English caption with relevant emojis",
+      "secondaryCaption": "Authentic Roman Urdu translation capturing the exact cultural vibe",
+      "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]
     },
     {
       "id": 2,
-      "angle": "Relatable Story",
-      "primaryCaption": "Relatable witty English caption",
-      "secondaryCaption": "Relatable Roman Urdu translation",
-      "hashtags": ["#lifestyle", "#trending", "#moments", "#instamood", "#foryou"]
+      "angle": "Relatable Humor",
+      "primaryCaption": "Relatable English caption",
+      "secondaryCaption": "Funny, relatable Roman Urdu translation",
+      "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]
     },
     {
       "id": 3,
       "angle": "Short & Punchy",
       "primaryCaption": "Short punchy English caption",
       "secondaryCaption": "Short punchy Roman Urdu translation",
-      "hashtags": ["#minimal", "#energy", "#mood", "#scenes", "#quote"]
+      "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]
     },
     {
       "id": 4,
-      "angle": "Engagement CTA",
-      "primaryCaption": "Question or CTA to boost comments",
-      "secondaryCaption": "Sawal ya comments barhane wali line",
-      "hashtags": ["#comment", "#community", "#share", "#viralpost", "#explorepage"]
+      "angle": "High Engagement CTA",
+      "primaryCaption": "Interactive English caption with a question",
+      "secondaryCaption": "Engaging Roman Urdu question asking for comments",
+      "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]
     }
   ]
 }`;
@@ -72,7 +78,7 @@ Return ONLY valid JSON matching this exact structure:
           'X-Title': 'Capshot'
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.0-flash-001',
+          model: 'openai/gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7
         })
@@ -81,7 +87,7 @@ Return ONLY valid JSON matching this exact structure:
       const data = await response.json();
       resultText = data.choices?.[0]?.message?.content || '';
     } else if (process.env.GEMINI_API_KEY) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -104,39 +110,40 @@ Return ONLY valid JSON matching this exact structure:
         return res.status(200).json({ success: true, cards: parsed.cards, fromCache: false });
       }
     }
-    throw new Error('Fallback needed');
+    throw new Error('AI output parsing fallback');
   } catch (err) {
-    // Guaranteed bulletproof instant response
+    // Contextual fallback based on topic keywords
+    const tagBase = topic.replace(/[^a-zA-Z0-9]/g, '').slice(0, 15);
     return res.status(200).json({
       success: true,
       cards: [
         {
           id: 1,
           angle: "Catchy Hook & Vibe",
-          primaryCaption: `Romanticizing ${topic} until it feels like a Pinterest board. ☕✨\n\nDouble tap if your vibe is 10/10 today!`,
-          secondaryCaption: `${topic} ka scene hi alag hai boss! ☕✨\n\nKaam ho na ho, vibes hamesha aesthetic honi chahiye. Double tap banta hai!`,
-          hashtags: ["#AestheticVibes", "#DailyMood", "#ExplorePage", "#TrendingNow", "#DesiVibes"]
+          primaryCaption: `Obsessed with this: ${topic}! ✨\n\nLiving in the moment and enjoying every single bit of it. Rate this vibe from 1-10!`,
+          secondaryCaption: `${topic} ka scene hi alag hai boss! ✨\n\nPoora enjoy chal raha hai. Aap batao, vibe match hui ke nahi?`,
+          hashtags: [`#${tagBase || 'Vibes'}`, "#TrendingNow", "#ExplorePage", "#GoodVibesOnly", "#InstaDaily"]
         },
         {
           id: 2,
-          angle: "Relatable & Fun",
-          primaryCaption: `Current status: 90% aesthetic, 10% actual productivity. 🌿💻\n\nOuter peace, inner deadline panic.`,
-          secondaryCaption: `Dil mein thodi tension, par post mein full sukoon. 🌿💻\n\nSach sach batao, kis kis ka yeh haal rehta hai?`,
-          hashtags: ["#RelatablePost", "#WorkVibes", "#CurrentMood", "#PinterestAesthetic", "#InstaDaily"]
+          angle: "Relatable Humor",
+          primaryCaption: `Current status: 90% thinking about ${topic}, 10% actually being productive. 🫠\n\nWho else is guilty of this?`,
+          secondaryCaption: `Zindagi mein baqi kaam ek taraf, aur ${topic} ek taraf. 🫠\n\nSach sach batana, kis kis ka yehi haal hai?`,
+          hashtags: [`#${tagBase || 'Relatable'}`, "#MoodOfTheDay", "#PakistaniCreators", "#RelatablePost", "#DailyHumor"]
         },
         {
           id: 3,
           angle: "Short & Punchy",
-          primaryCaption: `Pure focus, iced coffee, and zero excuses. 🧊🎧`,
-          secondaryCaption: `Seedhi baat aur solid scene. 🧊🎧`,
-          hashtags: ["#MinimalSetup", "#CleanAesthetic", "#Motivation", "#GrindMode", "#Focus"]
+          primaryCaption: `Pure ${topic} energy. No filters needed. 🔥`,
+          secondaryCaption: `Solid scene, no drama. 🔥`,
+          hashtags: [`#${tagBase || 'Aesthetic'}`, "#CleanVibes", "#CurrentMood", "#ViralPost", "#DailyInspo"]
         },
         {
           id: 4,
-          angle: "High Engagement / CTA",
-          primaryCaption: `Rate this setup from 1 to 10 in the comments below! 👇`,
-          secondaryCaption: `Comments mein batao aapko yeh kaisa laga (1-10)? 👇`,
-          hashtags: ["#CommentBelow", "#SetupGoals", "#Interactive", "#ContentCreator", "#DailyInspo"]
+          angle: "High Engagement CTA",
+          primaryCaption: `Tell me your favorite memory related to ${topic}! Dropping replies to everyone in the comments below. 👇`,
+          secondaryCaption: `Aapka ${topic} ke baray mein kya experience raha hai? Jaldi se comments mein share karein! 👇`,
+          hashtags: [`#${tagBase || 'Engagement'}`, "#CommentBelow", "#ShareYourStory", "#Interactive", "#DesiVibes"]
         }
       ],
       fromCache: false
