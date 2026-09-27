@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+    --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+    --bg-page: #FAF8F5;
+    --text-primary: #151922;
+    --accent-pink: #FF2E63;
+    --accent-yellow: #FEF08A;
+  }
+
+  .dark {
+    --bg-page: #0E1015;
+    --text-primary: #F3F4F6;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+  }
+
+  h1, h2, h3, h4, .font-heading {
+    font-family: var(--font-heading);
+  }
+}
+
+/* Layered 3D physical shadows */
+.shadow-3d-panel {
+  box-shadow: 
+    0 1px 2px rgba(21, 25, 34, 0.04),
+    0 4px 12px -2px rgba(21, 25, 34, 0.05),
+    0 16px 36px -6px rgba(21, 25, 34, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.dark .shadow-3d-panel {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 6px 18px -2px rgba(0, 0, 0, 0.5),
+    0 22px 42px -6px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.shadow-3d-card {
+  box-shadow:
+    0 1px 3px rgba(21, 25, 34, 0.03),
+    0 4px 10px -2px rgba(21, 25, 34, 0.04),
+    0 12px 26px -4px rgba(21, 25, 34, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.dark .shadow-3d-card {
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    0 6px 14px -2px rgba(0, 0, 0, 0.45),
+    0 16px 32px -4px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.shadow-3d-card:hover {
+  box-shadow:
+    0 2px 4px rgba(21, 25, 34, 0.04),
+    0 8px 20px -2px rgba(21, 25, 34, 0.07),
+    0 20px 40px -6px rgba(21, 25, 34, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.dark .shadow-3d-card:hover {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    0 10px 24px -2px rgba(0, 0, 0, 0.6),
+    0 26px 48px -6px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Subtle 3D Auto-Rotating Cube Animation */
+@keyframes capshot-cube-rotate {
+  0% {
+    transform: rotateX(-16deg) rotateY(0deg) rotateZ(0deg);
+  }
+  50% {
+    transform: rotateX(18deg) rotateY(180deg) rotateZ(4deg);
+  }
+  100% {
+    transform: rotateX(-16deg) rotateY(360deg) rotateZ(0deg);
+  }
+}
+
+/* Custom smooth scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.45);
+}
