@@ -11,7 +11,7 @@ import { RecentTopicsStrip } from './components/RecentTopicsStrip.tsx';
 import { HonestLimitsModal } from './components/HonestLimitsModal.tsx';
 import { Toast } from './components/Toast.tsx';
 import { Platform, LanguagePair, Vibe, CaptionCard, RecentItem } from './types.ts';
-import { Sparkles, HelpCircle, Layers, ShieldCheck, Zap } from 'lucide-react';
+import { Sparkles, Layers, ShieldCheck, Zap } from 'lucide-react';
 
 const RECENT_STORAGE_KEY = 'capshot_recent_v1';
 const DARK_MODE_KEY = 'capshot_dark_mode';
@@ -97,7 +97,6 @@ export default function App() {
       };
 
       setRecentTopics((prev) => {
-        // Filter out identical topic + platform to avoid duplicates
         const filtered = prev.filter(
           (item) => !(item.topic.toLowerCase() === topicText.toLowerCase() && item.platform === p)
         );
@@ -138,11 +137,18 @@ export default function App() {
     const maxAttempts = 5;
     let attempt = 1;
 
+    const cleanedTopic = (payload.topic || payload.description || topic || '').trim();
+    const requestBody = {
+      ...payload,
+      topic: cleanedTopic,
+      description: cleanedTopic,
+    };
+
     while (attempt <= maxAttempts) {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(requestBody),
       });
 
       if (!res.ok) {
@@ -152,7 +158,6 @@ export default function App() {
 
       const data = await res.json();
 
-      // If server returned retry signal
       if (data.retry) {
         setRetryStatus({ isRetrying: true, attempt, maxAttempts });
         const waitMs = (data.retryAfterSeconds || 2) * 1000;
@@ -161,13 +166,34 @@ export default function App() {
         continue;
       }
 
-      // Successful result
       setRetryStatus(null);
       return data;
     }
 
     setRetryStatus(null);
     throw new Error('High server traffic exceeded retries. Please wait a few seconds and try again.');
+  };
+
+  const parseResponseCards = (data: any): CaptionCard[] => {
+    if (data.cards && Array.isArray(data.cards) && data.cards.length > 0) {
+      return data.cards.map((c: any, i: number) => ({
+        id: c.id || i + 1,
+        angle: c.angle || 'Catchy Hook',
+        primaryCaption: c.primaryCaption || c.text || '',
+        secondaryCaption: c.secondaryCaption || c.translation || '',
+        hashtags: Array.isArray(c.hashtags) ? c.hashtags : [],
+      }));
+    }
+    if (data.captions && Array.isArray(data.captions) && data.captions.length > 0) {
+      return data.captions.map((c: any, i: number) => ({
+        id: i + 1,
+        angle: c.angle || 'Catchy Hook',
+        primaryCaption: c.text || c.primaryCaption || '',
+        secondaryCaption: c.translation || c.secondaryCaption || '',
+        hashtags: Array.isArray(c.hashtags) ? c.hashtags : [],
+      }));
+    }
+    return [];
   };
 
   // Generate 4 full captions
@@ -178,7 +204,8 @@ export default function App() {
 
     try {
       const data = await executeGenerationRequest({
-        topic,
+        topic: topic.trim(),
+        description: topic.trim(),
         platform,
         languagePair,
         vibe,
@@ -186,10 +213,12 @@ export default function App() {
         mode: 'full',
       });
 
-      if (data.cards && data.cards.length > 0) {
-        setCards(data.cards);
+      const parsedCards = parseResponseCards(data);
+
+      if (parsedCards.length > 0) {
+        setCards(parsedCards);
         setFromCache(Boolean(data.fromCache));
-        saveToRecent(data.cards, topic, platform, languagePair, vibe, myStyle);
+        saveToRecent(parsedCards, topic, platform, languagePair, vibe, myStyle);
         showToast(
           data.fromCache
             ? 'Instant result retrieved from cache!'
@@ -213,7 +242,8 @@ export default function App() {
     try {
       const currentTags = cards[0]?.hashtags || [];
       const data = await executeGenerationRequest({
-        topic,
+        topic: topic.trim(),
+        description: topic.trim(),
         platform,
         languagePair,
         vibe,
@@ -222,9 +252,10 @@ export default function App() {
         existingHashtags: currentTags,
       });
 
-      if (data.cards && data.cards.length > 0) {
-        // Merge with existing hashtags
-        const updatedCards = data.cards.map((card: any, idx: number) => ({
+      const parsedCards = parseResponseCards(data);
+
+      if (parsedCards.length > 0) {
+        const updatedCards = parsedCards.map((card) => ({
           ...card,
           hashtags: currentTags,
         }));
@@ -249,7 +280,8 @@ export default function App() {
 
     try {
       const data = await executeGenerationRequest({
-        topic,
+        topic: topic.trim(),
+        description: topic.trim(),
         platform,
         vibe,
         mode: 'hashtags_only',
@@ -276,7 +308,6 @@ export default function App() {
     }
   };
 
-  // Quick Inspiration Topic Chips
   const sampleTopics = [
     'Chai dhaba hangout with childhood friends',
     'Morning workout gym PR & consistency grind',
@@ -286,16 +317,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#0E1015] text-[#151922] dark:text-[#E2E6EF] flex flex-col transition-colors">
-      {/* Sticky Top Navbar */}
       <Navbar
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
         onOpenLimitsModal={() => setIsLimitsModalOpen(true)}
       />
 
-      {/* Main Content Container */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        {/* Hero Section */}
         <div className="text-center mb-8 sm:mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FEF08A] text-[#713F12] dark:bg-yellow-500/15 dark:text-yellow-300 text-xs font-semibold mb-3">
             <Sparkles className="w-3.5 h-3.5 text-[#FF2E63]" />
@@ -315,14 +343,13 @@ export default function App() {
             intelligent retry smoothing so it stays completely free for every visitor.
           </p>
 
-          {/* Quick inspiration chips */}
           <div className="flex flex-wrap items-center justify-center gap-2 mt-4 text-xs">
             <span className="text-[#7B8191] dark:text-[#8D94A6]">Try an idea:</span>
             {sampleTopics.map((s, idx) => (
               <button
                 key={idx}
                 onClick={() => setTopic(s)}
-                className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#151821] border border-[#E4E0D6] dark:border-[#262B37] text-[#484D5C] dark:text-[#BDC5D5] hover:border-[#FF2E63] hover:text-[#FF2E63] transition-colors"
+                className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#151821] border border-[#E4E0D6] dark:border-[#262B37] text-[#484D5C] dark:text-[#BDC5D5] hover:border-[#FF2E63] hover:text-[#FF2E63] transition-colors cursor-pointer"
               >
                 {s}
               </button>
@@ -330,7 +357,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Recent Topics Strip (Last 8 in LocalStorage) */}
         <RecentTopicsStrip
           items={recentTopics}
           activeId={activeRecentId}
@@ -338,7 +364,6 @@ export default function App() {
           onClear={handleClearHistory}
         />
 
-        {/* Input Form */}
         <CaptionForm
           topic={topic}
           setTopic={setTopic}
@@ -355,7 +380,6 @@ export default function App() {
           retryStatus={retryStatus}
         />
 
-        {/* 4 Cards Results View */}
         <CaptionResults
           cards={cards}
           platform={platform}
@@ -368,7 +392,6 @@ export default function App() {
           fromCache={fromCache}
         />
 
-        {/* Explanatory Footer & Privacy Callout */}
         <div className="mt-16 pt-8 border-t border-[#EAE6DF] dark:border-[#222631] grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-[#5D6373] dark:text-[#9DA4B4]">
           <div className="space-y-1">
             <div className="font-semibold text-[#151922] dark:text-white flex items-center gap-1.5">
@@ -405,7 +428,6 @@ export default function App() {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="w-full border-t border-[#E6E2DA] dark:border-[#222631] py-6 text-center text-xs text-[#7B8292] dark:text-[#8D94A6]">
         <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>Capshot — Free AI Social Media Caption Generator</span>
@@ -418,13 +440,11 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Honest Limits Modal */}
       <HonestLimitsModal
         isOpen={isLimitsModalOpen}
         onClose={() => setIsLimitsModalOpen(false)}
       />
 
-      {/* Toast Feedback */}
       <Toast message={toastMessage} />
     </div>
   );
