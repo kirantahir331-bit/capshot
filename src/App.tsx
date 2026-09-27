@@ -132,7 +132,7 @@ export default function App() {
     showToast('Recent history cleared');
   };
 
-  // API Request with automatic 5-attempt retry loop on rate limits
+  // API Request
   const executeGenerationRequest = async (payload: any): Promise<any> => {
     const maxAttempts = 5;
     let attempt = 1;
@@ -288,8 +288,8 @@ export default function App() {
         existingCaptions: cards,
       });
 
-      if (data.hashtags && Array.isArray(data.hashtags)) {
-        const freshTags = data.hashtags;
+      const freshTags = data.hashtags || (data.cards && data.cards[0]?.hashtags);
+      if (freshTags && Array.isArray(freshTags) && freshTags.length > 0) {
         const updatedCards = cards.map((c) => ({
           ...c,
           hashtags: freshTags,
