@@ -1,123 +1,189 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { GoogleGenAI, Type } from '@google/genai';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { description, platform, languagePair, vibe, customStyle } = req.body || {};
+  const body = req.body || {};
+  const topic = (body.topic || body.description || '').trim();
+  const platform = body.platform || 'Instagram';
+  const languagePair = body.languagePair || 'English + Roman Urdu';
+  const vibe = body.vibe || 'Fun & witty';
+  const myStyle = body.myStyle || body.customStyle || '';
+  const mode = body.mode || 'full';
+  const existingHashtags = body.existingHashtags || [];
+  const existingCaptions = body.existingCaptions || [];
 
-  if (!description) {
-    return res.status(400).json({ error: 'Description is required' });
+  if (!topic) {
+    return res.status(400).json({ error: 'Post topic is required.' });
   }
 
-  const apiKey = process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY;
+  let secondaryLangName = 'Roman Urdu';
+  if (languagePair.includes('Urdu') && !languagePair.includes('Roman')) {
+    secondaryLangName = 'Urdu (نستعلیق / Arabic script)';
+  } else if (languagePair.includes('Hindi')) {
+    secondaryLangName = 'Hindi (Devanagari script)';
+  } else if (languagePair.includes('Roman Urdu')) {
+    secondaryLangName = 'Roman Urdu (natural conversational Pakistani Roman Urdu)';
+  } else {
+    secondaryLangName = 'Alternative English angle';
+  }
 
-  const prompt = `You are a social media copywriter. Generate 4 bilingual captions with 5 hashtags.
-Topic: "${description}"
-Platform: "${platform || 'Instagram'}"
-Language Pair: "${languagePair || 'English + Roman Urdu'}"
-Vibe: "${vibe || 'Fun & witty'}"
-${customStyle ? `Style to mimic: "${customStyle}"` : ''}
+  let prompt = '';
+  if (mode === 'captions_only' && existingHashtags && existingHashtags.length > 0) {
+    prompt = `You are Capshot, an elite social media copywriter.
+Task: Write 4 BRAND NEW, creative caption variations specifically for this post topic while keeping the hashtags FIXED as provided below.
 
-Return ONLY a valid JSON object matching this structure without markdown code blocks:
-{
-  "captions": [
-    {
-      "angle": "Catchy Hook",
-      "text": "Your English text here",
-      "translation": "Aapka Roman Urdu translation yahan",
-      "hashtags": ["#viral", "#explore", "#trending", "#vibes", "#caption"]
-    },
-    {
-      "angle": "Relatable / Story",
-      "text": "Engaging caption text here",
-      "translation": "Relatable Roman Urdu translation yahan",
-      "hashtags": ["#dailyvibes", "#moments", "#lifestyle", "#mood", "#trend"]
-    },
-    {
-      "angle": "Short & Punchy",
-      "text": "Minimal punchy text",
-      "translation": "Chhota aur solid Roman Urdu text",
-      "hashtags": ["#short", "#goals", "#weekend", "#energy", "#post"]
-    },
-    {
-      "angle": "Call-To-Action (CTA)",
-      "text": "Question or CTA to boost comments",
-      "translation": "Sawal ya engagement barhane wali Roman Urdu line",
-      "hashtags": ["#engage", "#thoughts", "#community", "#share", "#foryou"]
-    }
-  ]
-}`;
+Post Topic: "${topic}"
+Platform: ${platform}
+Vibe: ${vibe}
+Language Pair: ${languagePair} (Primary: English, Secondary: ${secondaryLangName})
+${myStyle ? `Style to mimic: "${myStyle}"` : ''}
+Fixed Hashtags: ${JSON.stringify(existingHashtags)}
+
+Requirements:
+1. Provide 4 distinct options: Catchy Hook, Relatable Humor/Story, Short & Punchy, Engagement CTA.
+2. Primary caption must be in English with appropriate emojis and formatting.
+3. Secondary caption must be in ${secondaryLangName}, sounding natural and authentic for the topic.
+4. Keep the hashtags exactly as provided.`;
+  } else if (mode === 'hashtags_only') {
+    prompt = `You are Capshot, an elite social media hashtag specialist.
+Task: Generate 5 fresh, trending, highly relevant hashtags for this post.
+
+Post Topic: "${topic}"
+Platform: ${platform}
+Vibe: ${vibe}
+${existingCaptions.length > 0 ? `Captions:\n${existingCaptions.map((c: any, i: number) => `Option ${i + 1}: ${c.primaryCaption}`).join('\n')}` : ''}
+
+Requirements:
+- Exactly 5 hashtags starting with '#' specifically tailored to "${topic}" and ${platform}.`;
+  } else {
+    prompt = `You are Capshot, an award-winning social media strategist.
+Task: Generate 4 completely unique, viral caption options specifically customized for this post topic.
+
+Post Topic: "${topic}"
+Platform: ${platform}
+Vibe: ${vibe}
+Language Pair: ${languagePair}
+- Primary: English
+- Secondary: ${secondaryLangName}
+${myStyle ? `Style to mimic: "${myStyle}"` : ''}
+
+Angles:
+1. Catchy Hook & High Energy
+2. Relatable Story / Candid Humor
+3. Short, Aesthetic & Punchy
+4. High Engagement Question / CTA
+
+Rules:
+- Captions must be completely customized to "${topic}". Never output generic placeholder templates.
+- Secondary caption: If Roman Urdu, write natural conversational Pakistani Roman Urdu directly about "${topic}". If Urdu, use Urdu script. If Hindi, use Devanagari script.
+- Provide 5 highly relevant hashtags tailored to "${topic}" and ${platform}.`;
+  }
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured.' });
+  }
 
   try {
-    let resultText = '';
-
-    if (process.env.OPENROUTER_API_KEY) {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
+    const ai = new GoogleGenAI({
+      apiKey: geminiKey,
+      httpOptions: {
         headers: {
-          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://capshot.vercel.app',
-          'X-Title': 'Capshot'
+          'User-Agent': 'aistudio-build',
         },
-        body: JSON.stringify({
-          model: 'google/gemini-2.0-flash-001',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7
-        })
-      });
+      },
+    });
 
-      const data = await response.json();
-      resultText = data.choices?.[0]?.message?.content || '';
-    } else if (process.env.GEMINI_API_KEY) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
-      });
+    const targetSchema = mode === 'hashtags_only'
+      ? {
+          type: Type.OBJECT,
+          properties: {
+            hashtags: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+            },
+          },
+          required: ['hashtags'],
+        }
+      : {
+          type: Type.OBJECT,
+          properties: {
+            cards: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.INTEGER },
+                  angle: { type: Type.STRING },
+                  primaryCaption: { type: Type.STRING },
+                  secondaryCaption: { type: Type.STRING },
+                  hashtags: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                  },
+                },
+                required: ['id', 'angle', 'primaryCaption', 'secondaryCaption', 'hashtags'],
+              },
+            },
+          },
+          required: ['cards'],
+        };
 
-      const data = await response.json();
-      resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+    let lastError: any = null;
+
+    for (const model of modelsToTry) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: targetSchema,
+            temperature: 0.8,
+          },
+        });
+
+        const text = response.text || '';
+        const parsed = JSON.parse(text.replace(/```json/gi, '').replace(/```/g, '').trim());
+
+        if (mode === 'hashtags_only') {
+          const freshHashtags = (parsed.hashtags || [])
+            .map((t: string) => (String(t).startsWith('#') ? String(t) : `#${String(t).replace(/^#*/, '')}`))
+            .slice(0, 5);
+          return res.status(200).json({ success: true, hashtags: freshHashtags });
+        }
+
+        const cards = (parsed.cards || []).slice(0, 4).map((c: any, idx: number) => {
+          let tags = Array.isArray(c.hashtags) ? c.hashtags : [];
+          if (mode === 'captions_only' && existingHashtags.length > 0) {
+            tags = existingHashtags;
+          }
+          tags = tags.map((t: any) => (String(t).startsWith('#') ? String(t) : `#${String(t).replace(/^#*/, '')}`)).slice(0, 5);
+          return {
+            id: c.id || idx + 1,
+            angle: c.angle || `Option ${idx + 1}`,
+            primaryCaption: c.primaryCaption || '',
+            secondaryCaption: c.secondaryCaption || '',
+            hashtags: tags,
+          };
+        });
+
+        return res.status(200).json({ success: true, cards, fromCache: false });
+      } catch (err: any) {
+        lastError = err;
+        continue;
+      }
     }
 
-    // Clean JSON markdown if model wrapped it
-    const cleaned = resultText.replace(/```json/gi, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(cleaned);
-
-    return res.status(200).json(parsed);
-  } catch (err: any) {
-    // Elegant fallback so user NEVER sees an error screen!
-    return res.status(200).json({
-      captions: [
-        {
-          angle: "Catchy Hook",
-          text: `Embracing the energy of ${description} ✨`,
-          translation: `${description} ki vibes hi alag hain, full chill scene! 💫`,
-          hashtags: ["#vibes", "#trending", "#fyp", "#explore", "#bilingual"]
-        },
-        {
-          angle: "Relatable & Fun",
-          text: `When ${description} hits just right on a busy day.`,
-          translation: `Sach batao, kis kis ko yeh routine pasand hai?`,
-          hashtags: ["#relatable", "#instamood", "#dailylife", "#lifestyle", "#goodtimes"]
-        },
-        {
-          angle: "Short & Bold",
-          text: `Pure moments, zero filters.`,
-          translation: `Seedhi baat, no faltu drama.`,
-          hashtags: ["#aesthetic", "#minimal", "#chill", "#moment", "#currentmood"]
-        },
-        {
-          angle: "Engagement / CTA",
-          text: `Rate this vibe from 1-10 in the comments below! 👇`,
-          translation: `Comment mein batao aapki kya raye hai! 👇`,
-          hashtags: ["#comments", "#viralposts", "#interactive", "#dailygrowth", "#capshot"]
-        }
-      ]
+    throw lastError || new Error('All AI models failed');
+  } catch (error: any) {
+    return res.status(500).json({
+      error: 'Failed to generate captions. Please try again.',
+      details: error?.message || String(error),
     });
   }
 }
