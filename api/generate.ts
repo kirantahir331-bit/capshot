@@ -1,5 +1,3 @@
-import { GoogleGenAI, Type } from '@google/genai';
-
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -43,10 +41,21 @@ ${myStyle ? `Style to mimic: "${myStyle}"` : ''}
 Fixed Hashtags: ${JSON.stringify(existingHashtags)}
 
 Requirements:
-1. Provide 4 distinct options: Catchy Hook, Relatable Humor/Story, Short & Punchy, Engagement CTA.
-2. Primary caption must be in English with appropriate emojis and formatting.
-3. Secondary caption must be in ${secondaryLangName}, sounding natural and authentic for the topic.
-4. Keep the hashtags exactly as provided.`;
+1. Provide 4 distinct options: Catchy Hook, Relatable Story/Humor, Short & Punchy, Engagement CTA.
+2. Primary caption in English with appropriate emojis and formatting.
+3. Secondary caption in ${secondaryLangName}, sounding natural and authentic for the topic.
+4. Keep the hashtags exactly as provided.
+
+Return ONLY a valid JSON array of 4 objects matching this structure:
+[
+  {
+    "id": 1,
+    "angle": "Catchy Hook",
+    "primaryCaption": "...",
+    "secondaryCaption": "...",
+    "hashtags": ${JSON.stringify(existingHashtags)}
+  }
+]`;
   } else if (mode === 'hashtags_only') {
     prompt = `You are Capshot, an elite social media hashtag specialist.
 Task: Generate 5 fresh, trending, highly relevant hashtags for this post.
@@ -57,7 +66,12 @@ Vibe: ${vibe}
 ${existingCaptions.length > 0 ? `Captions:\n${existingCaptions.map((c: any, i: number) => `Option ${i + 1}: ${c.primaryCaption}`).join('\n')}` : ''}
 
 Requirements:
-- Exactly 5 hashtags starting with '#' specifically tailored to "${topic}" and ${platform}.`;
+- Exactly 5 hashtags starting with '#' specifically tailored to "${topic}" and ${platform}.
+
+Return ONLY valid JSON matching this schema:
+{
+  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]
+}`;
   } else {
     prompt = `You are Capshot, an award-winning social media strategist.
 Task: Generate 4 completely unique, viral caption options specifically customized for this post topic.
@@ -79,111 +93,150 @@ Angles:
 Rules:
 - Captions must be completely customized to "${topic}". Never output generic placeholder templates.
 - Secondary caption: If Roman Urdu, write natural conversational Pakistani Roman Urdu directly about "${topic}". If Urdu, use Urdu script. If Hindi, use Devanagari script.
-- Provide 5 highly relevant hashtags tailored to "${topic}" and ${platform}.`;
+- Provide 5 highly relevant hashtags tailored to "${topic}" and ${platform}.
+
+Return ONLY a valid JSON array of 4 objects:
+[
+  {
+    "id": 1,
+    "angle": "Catchy Hook",
+    "primaryCaption": "...",
+    "secondaryCaption": "...",
+    "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]
+  }
+]`;
   }
 
   const geminiKey = process.env.GEMINI_API_KEY;
-  if (!geminiKey) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured.' });
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+
+  if (!geminiKey && !openRouterKey) {
+    return res.status(500).json({
+      error: 'GEMINI_API_KEY is missing. Please add GEMINI_API_KEY in Vercel Project Settings > Environment Variables.',
+    });
   }
 
   try {
-    const ai = new GoogleGenAI({
-      apiKey: geminiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
-    });
+    let rawText = '';
 
-    const targetSchema = mode === 'hashtags_only'
-      ? {
-          type: Type.OBJECT,
-          properties: {
-            hashtags: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-            },
-          },
-          required: ['hashtags'],
-        }
-      : {
-          type: Type.OBJECT,
-          properties: {
-            cards: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.INTEGER },
-                  angle: { type: Type.STRING },
-                  primaryCaption: { type: Type.STRING },
-                  secondaryCaption: { type: Type.STRING },
-                  hashtags: {
-                    type: Type.ARRAY,
-                    items: { type: Type.STRING },
-                  },
+    // 1. Try Gemini REST API (Zero external packages required)
+    if (geminiKey) {
+      const models = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+      for (const m of models) {
+        try {
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                  responseMimeType: 'application/json',
+                  temperature: 0.8,
                 },
-                required: ['id', 'angle', 'primaryCaption', 'secondaryCaption', 'hashtags'],
-              },
-            },
-          },
-          required: ['cards'],
-        };
+              }),
+            }
+          );
 
-    const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
-    let lastError: any = null;
-
-    for (const model of modelsToTry) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema: targetSchema,
-            temperature: 0.8,
-          },
-        });
-
-        const text = response.text || '';
-        const parsed = JSON.parse(text.replace(/```json/gi, '').replace(/```/g, '').trim());
-
-        if (mode === 'hashtags_only') {
-          const freshHashtags = (parsed.hashtags || [])
-            .map((t: string) => (String(t).startsWith('#') ? String(t) : `#${String(t).replace(/^#*/, '')}`))
-            .slice(0, 5);
-          return res.status(200).json({ success: true, hashtags: freshHashtags });
-        }
-
-        const cards = (parsed.cards || []).slice(0, 4).map((c: any, idx: number) => {
-          let tags = Array.isArray(c.hashtags) ? c.hashtags : [];
-          if (mode === 'captions_only' && existingHashtags.length > 0) {
-            tags = existingHashtags;
+          if (geminiRes.ok) {
+            const data = await geminiRes.json();
+            rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (rawText) break;
           }
-          tags = tags.map((t: any) => (String(t).startsWith('#') ? String(t) : `#${String(t).replace(/^#*/, '')}`)).slice(0, 5);
-          return {
-            id: c.id || idx + 1,
-            angle: c.angle || `Option ${idx + 1}`,
-            primaryCaption: c.primaryCaption || '',
-            secondaryCaption: c.secondaryCaption || '',
-            hashtags: tags,
-          };
-        });
-
-        return res.status(200).json({ success: true, cards, fromCache: false });
-      } catch (err: any) {
-        lastError = err;
-        continue;
+        } catch {
+          // fallback to next model
+        }
       }
     }
 
-    throw lastError || new Error('All AI models failed');
-  } catch (error: any) {
+    // 2. Fallback to OpenRouter if configured and Gemini didn't return
+    if (!rawText && openRouterKey) {
+      const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openRouterKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'openrouter/free',
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+
+      if (orRes.ok) {
+        const orData = await orRes.json();
+        rawText = orData.choices?.[0]?.message?.content || '';
+      }
+    }
+
+    if (!rawText) {
+      throw new Error('AI provider returned empty response. Please verify GEMINI_API_KEY in Vercel settings.');
+    }
+
+    const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+    // Mode: hashtags_only
+    if (mode === 'hashtags_only') {
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
+      let hashtags: string[] = [];
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        const parsed = JSON.parse(cleaned.substring(firstBrace, lastBrace + 1));
+        hashtags = parsed.hashtags || [];
+      }
+      const formattedTags = hashtags
+        .map((t: string) => (String(t).startsWith('#') ? String(t) : `#${String(t).replace(/^#*/, '')}`))
+        .slice(0, 5);
+      return res.status(200).json({ success: true, hashtags: formattedTags, mode: 'hashtags_only' });
+    }
+
+    // Mode: full or captions_only
+    let parsedCards: any[] = [];
+    const firstBracket = cleaned.indexOf('[');
+    const lastBracket = cleaned.lastIndexOf(']');
+    if (firstBracket !== -1 && lastBracket !== -1) {
+      parsedCards = JSON.parse(cleaned.substring(firstBracket, lastBracket + 1));
+    } else {
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        const parsed = JSON.parse(cleaned.substring(firstBrace, lastBrace + 1));
+        parsedCards = parsed.cards || Object.values(parsed);
+      }
+    }
+
+    if (!Array.isArray(parsedCards) || parsedCards.length === 0) {
+      throw new Error('Failed to parse AI output. Please try again.');
+    }
+
+    const cards = parsedCards.slice(0, 4).map((c: any, idx: number) => {
+      let tags = Array.isArray(c.hashtags)
+        ? c.hashtags
+        : typeof c.hashtags === 'string'
+        ? c.hashtags.split(/\s+/).filter(Boolean)
+        : [];
+
+      if (mode === 'captions_only' && existingHashtags.length > 0) {
+        tags = existingHashtags;
+      }
+
+      tags = tags.map((t: any) => (String(t).startsWith('#') ? String(t) : `#${String(t).replace(/^#*/, '')}`)).slice(0, 5);
+
+      return {
+        id: c.id || idx + 1,
+        angle: c.angle || `Option ${idx + 1}`,
+        primaryCaption: c.primaryCaption || c.caption || '',
+        secondaryCaption: c.secondaryCaption || c.translation || '',
+        hashtags: tags,
+      };
+    });
+
+    return res.status(200).json({ success: true, cards, fromCache: false });
+  } catch (err: any) {
+    console.error('Error generating captions:', err);
     return res.status(500).json({
-      error: 'Failed to generate captions. Please try again.',
-      details: error?.message || String(error),
+      error: 'Failed to generate captions: ' + (err?.message || 'Server error'),
     });
   }
 }
